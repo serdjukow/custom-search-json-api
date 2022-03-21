@@ -1,7 +1,7 @@
 document.querySelector('body').insertAdjacentHTML(
 	'beforeend',
 	`
-		<div id="result-page" class="wrapper result-page">
+		<div id="result-page" class="wrapper result-page show">
 			<header class="header">			
 				<div class="header__row header__container">
 					<div class="header__close">&#x2715</div>	
@@ -65,33 +65,32 @@ const apiKeyArr = [
 	'AIzaSyAKw-CcJL3OmIKfsgn5EKUPp5CcnBwWZ6Y',
 	'AIzaSyBy8LZVLSIxHlEWCJaqWpGf10Vez9I2Wcw',
 	'AIzaSyAr0KzGhupaq2WZCroJe24AYkKe6TUQVXg',
-	'AIzaSyA5-m1Nnjm6fYKks3p-fJcfaCseNObBZ8o'
+	'AIzaSyA5-m1Nnjm6fYKks3p-fJcfaCseNObBZ8o',
 ]
 
-const randomKey = () => apiKeyArr[ Math.floor(Math.random() * apiKeyArr.length)]
+const randomKey = () => apiKeyArr[Math.floor(Math.random() * apiKeyArr.length)]
 
-async function searchRequest(searchValie) {
-	let curButtonValue
-	if (sessionStorage.getItem('curPage')) {
-		curButtonValue = +JSON.parse(sessionStorage.getItem('curPage')) * 10 + 1
-	}
+let searchUrl = new URL(`https://www.googleapis.com/customsearch/v1?`)
+searchUrl.searchParams.set('key', randomKey())
+searchUrl.searchParams.set('cx', '017576662512468239146:omuauf_lfve')
+searchUrl.searchParams.set('start', '1')
+searchUrl.searchParams.set('gl', 'de')
 
-	const newsUrl = `https://www.googleapis.com/customsearch/v1?key=${ randomKey() }&cx=017576662512468239146:omuauf_lfve&q=${searchValie}&start=${curButtonValue || '0'}&num=10`
+searchUrl.searchParams.set('num', '10')
 
-	const response = await fetch(newsUrl)
-
+async function searchRequest() {
 	try {
+		const response = await fetch(searchUrl)
 		const searchValue = await response.json()
+		console.log(searchValue)
 		if (searchValue.error) {
 			document.querySelector('.result-body__content').innerHTML = `<span style="color:red;">${searchValue.error.message}</span>`
 		} else if (searchValue.searchInformation.totalResults !== '0') {
 			let searchValueLength = Math.ceil(+searchValue.searchInformation.totalResults / 10)
 			getStats(searchValue)
 			searchRender(searchValue.items)
-			moreItemsToHtml(searchValueLength)
-			addMoreActive(searchValue)
 		} else {
-			document.querySelector('.result-body__content').innerHTML = 'Not found...'				
+			document.querySelector('.result-body__content').innerHTML = 'Not found...'
 		}
 	} catch (er) {
 		console.error(er.message)
@@ -120,14 +119,12 @@ const searchItemToHtml = searchItem => `
 	</div>
 `
 
-function searchRender(searchItems) {
-	document.querySelector('.result-body__content').innerHTML = searchItems.map(searchItemToHtml).join('')
-}
+const searchRender = searchItems => (document.querySelector('.result-body__content').innerHTML = searchItems.map(searchItemToHtml).join(''))
 
 function getBlockFormValue() {
 	document.querySelector('body').addEventListener('submit', e => {
+		e.preventDefault()
 		if (e.target.id === 'search') {
-			e.preventDefault()
 			let currentValue = e.target.querySelector('[name="search-block-value"]').value
 			if (currentValue) {
 				let curPage = 0
@@ -148,13 +145,51 @@ function getFormValue() {
 		e.preventDefault()
 		let currentValue = searchForm.querySelector('[name="search-value"]').value
 		if (currentValue) {
-			let curPage = 0
-			sessionStorage.setItem('curPage', JSON.stringify(curPage))
-			searchRequest(currentValue)
+			searchUrl.searchParams.set('q', currentValue)
+			searchRequest()
 		}
 	})
 }
 getFormValue()
+
+// Problem
+
+const clearActive = () => document.querySelectorAll('.more__item').forEach(item => item.closest('.active') && item.classList.remove('active'))
+
+function addMoreValue() {
+	const moreItemsContainer = document.getElementById('more-items')
+	moreItemsContainer.addEventListener('click', e => {
+		if (e.target.closest('.more__item') && searchUrl.searchParams.get('q')) {
+			searchUrl.searchParams.set('start', (+e.target.textContent - 1) * 10 + 1)
+			searchRequest()
+			clearActive()
+			e.target.classList.add('active')
+		}
+	})
+}
+addMoreValue()
+
+function moreItemsToHtml(searchValueLength) {
+	let activePage = JSON.parse(sessionStorage.getItem('curPage'))
+	const moreItemsContainer = document.getElementById('more-items')
+
+	moreItemsContainer.innerHTML = ''
+	if (searchValueLength > 10) {
+		for (let i = 0; i <= 9; i++) {
+			moreItemsContainer.innerHTML += `<li class="more__item ${i == activePage ? 'active' : ''}">${i}</li>`
+		}
+	}
+	if (searchValueLength <= 10) {
+		for (let i = 1; i <= searchValueLength; i++) {
+			moreItemsContainer.innerHTML += `<li class="more__item ${i == activePage ? 'active' : ''}">${i}</li>`
+		}
+	}
+}
+moreItemsToHtml(10)
+
+// / Problem
+
+// Button close
 
 function closeResulpPage() {
 	const buttonClose = document.querySelector('.header__close')
@@ -175,33 +210,3 @@ const headerSticky = () => {
 	resultPage.addEventListener('scroll', () => (resultPage.scrollTop >= 200 ? header.classList.add('sticky') : header.classList.remove('sticky')))
 }
 headerSticky()
-
-function moreItemsToHtml(searchValueLength) {
-	let activePage = JSON.parse(sessionStorage.getItem('curPage'))
-	const moreItemsContainer = document.getElementById('more-items')
-
-	moreItemsContainer.innerHTML = ''
-	if (searchValueLength > 10) {
-		for (let i = 0; i <= 9; i++) {
-			moreItemsContainer.innerHTML += `<li class="more__item ${i == activePage ? 'active' : ''}">${i}</li>`
-		}
-	}
-	if (searchValueLength < 10) {
-		for (let i = 0; i <= searchValueLength; i++) {
-			moreItemsContainer.innerHTML += `<li class="more__item ${i == activePage ? 'active' : ''}">${i}</li>`
-		}
-	}
-}
-
-function addMoreActive(searchValue) {
-	const moreItemsContainer = document.getElementById('more-items')
-	moreItemsContainer.addEventListener('click', e => {
-		e.preventDefault()
-		if (e.target.closest('.more__item')) {
-			sessionStorage.setItem('curPage', JSON.stringify(e.target.textContent))
-			searchRequest(searchValue.queries.request[0].searchTerms)
-			getStats(searchValue)
-		}
-	})
-}
-
